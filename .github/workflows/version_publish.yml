@@ -114,7 +114,7 @@ jobs:
           git config --global user.name "OscarLeBot"
           git config --global user.email "contact@ekalia.fr"
           
-          cp ./build.gradle.kts ./old.build.gradle.kts && sed 's/version = "${{ env.PREVIOUS_VERSION }}"/version = ${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ env.VERSION_PATCH }}"/' ./old.build.gradle.kts > ./app/package.json && rm ./old.build.gradle.kts
+          cp ./build.gradle.kts ./old.build.gradle.kts && sed 's/version = "${{ env.PREVIOUS_VERSION }}"/version = ${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ env.VERSION_PATCH }}"/' ./old.build.gradle.kts > ./build.gradle.kts && rm ./old.build.gradle.kts
           
           git add .
           
