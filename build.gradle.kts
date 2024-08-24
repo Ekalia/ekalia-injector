@@ -4,7 +4,7 @@ plugins {
     id("maven-publish")
 }
 
-val isRelease = System.getenv().containsKey("RELEASE")
+val isRelease = System.getenv("RELEASE") == "true"
 
 val nexusUser = System.getenv()["NEXUS_USER"]
 val nexusPass = System.getenv()["NEXUS_PASS"]
@@ -18,7 +18,7 @@ repositories {
 
     maven {
         name = "ekalia"
-        url = uri("https://nexus.ekalia.fr/repository/maven-release/")
+        url = uri("https://nexus.ekalia.fr/repository/maven-releases/")
     }
 }
 
@@ -30,7 +30,7 @@ publishing {
     }
 
     repositories {
-        maven("https://nexus.ekalia.fr/repository/maven-${if (isRelease) "release" else "snapshots"}/") {
+        maven("https://nexus.ekalia.fr/repository/maven-${if (isRelease) "releases" else "snapshots"}/") {
             if (isInCi) {
                 credentials {
                     username = nexusUser
