@@ -1,0 +1,133 @@
+name: Version and publish
+run-name: Version and publish
+on:
+  push:
+    branches:
+      - develop
+      - main
+env:
+  VERSION_UPDATED: false
+  RELEASE: ${{ github.ref == 'refs/heads/main' }}
+  PREVIOUS_VERSION: ${{ vars.VERSION_MAJOR }}.${{ vars.VERSION_MINOR }}.${{ vars.VERSION_PATCH }}
+jobs:
+  versioning:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if version needs to be updated
+        run: |
+          COMMIT_NAME="${{ github.event.head_commit.message }}"
+          
+          if [[ $COMMIT_NAME =~ ^bump:.*$ ]]; then
+            exit 0
+          fi
+          
+          COMMIT_BRANCH="${{ github.ref }}"
+          
+          VERSION_MAJOR=${{ vars.VERSION_MAJOR }}
+          VERSION_MINOR=${{ vars.VERSION_MINOR }}
+          VERSION_PATCH=${{ vars.VERSION_PATCH }}
+          
+          if [[ $COMMIT_BRANCH == "refs/heads/main" ]]; then
+            if [[ $COMMIT_NAME =~ ^release:.*$ ]]; then
+              VERSION_MAJOR=$((VERSION_MAJOR+1))
+              VERSION_MINOR=0
+              VERSION_PATCH=0
+          
+              VERSION_UPDATED=true
+          
+              curl \
+                -X PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.TOKEN }}"\
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/Ekalia/ekalia-injector/actions/variables/VERSION_MAJOR \
+                -d "{\"name\":\"VERSION_MAJOR\",\"value\":\"$VERSION_MAJOR\"}"          
+          
+              curl \
+                -X PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.TOKEN }}"\
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/Ekalia/ekalia-injector/actions/variables/VERSION_MINOR \
+                -d "{\"name\":\"VERSION_MINOR\",\"value\":\"$VERSION_MINOR\"}"
+          
+              curl \
+                -X PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.TOKEN }}"\
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/Ekalia/ekalia-injector/actions/variables/VERSION_PATCH \
+                -d "{\"name\":\"VERSION_PATCH\",\"value\":\"$VERSION_PATCH\"}"
+            fi 
+          elif [[ $COMMIT_BRANCH == "refs/heads/develop" ]]; then
+            if [[ $COMMIT_NAME =~ ^feat.*:.*$ ]]; then
+              VERSION_MINOR=$((VERSION_MINOR+1))
+              VERSION_PATCH=0
+          
+              VERSION_UPDATED=true
+          
+              curl \
+                -X PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.TOKEN }}"\
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/Ekalia/ekalia-injector/actions/variables/VERSION_MINOR \
+                -d "{\"name\":\"VERSION_MINOR\",\"value\":\"$VERSION_MINOR\"}"
+          
+              curl \
+                -X PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.TOKEN }}"\
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/Ekalia/ekalia-injector/actions/variables/VERSION_PATCH \
+                -d "{\"name\":\"VERSION_PATCH\",\"value\":\"$VERSION_PATCH\"}"
+            elif [[ $COMMIT_NAME =~ ^fix.*:.*$ ]]; then
+              VERSION_PATCH=$((VERSION_PATCH+1))
+          
+              VERSION_UPDATED=true
+          
+              curl \
+                -X PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.TOKEN }}"\
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://api.github.com/repos/Ekalia/ekalia-injector/actions/variables/VERSION_PATCH \
+                -d "{\"name\":\"VERSION_PATCH\",\"value\":\"$VERSION_PATCH\"}"
+            fi
+          fi
+          
+          echo "New project version : v${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
+          
+          echo "VERSION_UPDATED=${VERSION_UPDATED}" >> $GITHUB_ENV
+          echo "VERSION_MAJOR=${VERSION_MAJOR}" >> $GITHUB_ENV
+          echo "VERSION_MINOR=${VERSION_MINOR}" >> $GITHUB_ENV
+          echo "VERSION_PATCH=${VERSION_PATCH}" >> $GITHUB_ENV
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+          token: ${{ secrets.TOKEN }}
+        if: ${{ env.VERSION_UPDATED == 'true' }}
+      - name: Change version if needed
+        if: ${{ env.VERSION_UPDATED == 'true' }}
+        run: |
+          git config --global user.name "OscarLeBot"
+          git config --global user.email "contact@ekalia.fr"
+          
+          cp ./build.gradle.kts ./old.build.gradle.kts && sed 's/version = "${{ env.PREVIOUS_VERSION }}"/version = ${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ env.VERSION_PATCH }}"/' ./old.build.gradle.kts > ./app/package.json && rm ./old.build.gradle.kts
+          
+          git add .
+          
+          git commit -m "bump: version ${{ env.VERSION_MAJOR }}.${{ env.VERSION_MINOR }}.${{ env.VERSION_PATCH }} [no ci]"
+          
+          git push origin ${{ github.ref }}
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+          token: ${{ secrets.TOKEN }}
+      - name: Publish changes
+        run: ./gradlew publish
