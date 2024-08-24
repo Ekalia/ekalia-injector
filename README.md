@@ -1,5 +1,6 @@
 # Ekalia Injector
-![Sonatype Nexus (Repository)](https://img.shields.io/nexus/maven-release/fr.ekalia.injector/ekalia-injector?server=https%3A%2F%2Fnexus.ekalia.fr&label=Release&color=green&link=https%3A%2F%2Fnexus.ekalia.fr%2F%23browse%2Fbrowse%3Amaven-release%3Afr%252Fekalia%252Finjector%252Fekalia-injector) ![Sonatype Nexus (Repository)](https://img.shields.io/nexus/maven-public/fr.ekalia.injector/ekalia-injector?server=https%3A%2F%2Fnexus.ekalia.fr&label=Snapshot&color=blue&link=https%3A%2F%2Fnexus.ekalia.fr%2F%23browse%2Fbrowse%3Amaven-public%3Afr%252Fekalia%252Finjector%252Fekalia-injector)
+
+[![Sonatype Nexus (Repository)](https://img.shields.io/nexus/maven-releases/fr.ekalia.injector/ekalia-injector?server=https%3A%2F%2Fnexus.ekalia.fr&label=Release&color=green&link=https%3A%2F%2Fnexus.ekalia.fr%2F%23browse%2Fbrowse%3Amaven-release%3Afr%252Fekalia%252Finjector%252Fekalia-injector)](https://nexus.ekalia.fr/#browse/browse:maven-releases:fr%2Fekalia%2Finjector%2Fekalia-injector) [![Sonatype Nexus (Repository)](https://img.shields.io/nexus/maven-public/fr.ekalia.injector/ekalia-injector?server=https%3A%2F%2Fnexus.ekalia.fr&label=Snapshot&color=blue&link=https%3A%2F%2Fnexus.ekalia.fr%2F%23browse%2Fbrowse%3Amaven-public%3Afr%252Fekalia%252Finjector%252Fekalia-injector)](https://nexus.ekalia.fr/#browse/browse:maven-snapshots:fr%2Fekalia%2Finjector%2Fekalia-injector)
 
 This is an object injector for Java programs that is used to inject objects into static fields of classes, instead of
 passing them as arguments to constructors. This is useful when you have a lot of classes that need to access the same
@@ -7,7 +8,47 @@ object, but you don't want to pass it as an argument to every constructor.
 
 ## Installation
 
-// TODO
+### Maven
+
+If you use Maven you should use the following code :
+
+```xml
+<repositories>
+    ...
+    <repository>
+        <id>ekalia</id>
+        <url>https://nexus.ekalia.fr/repository/maven-public/</url>
+    </repository>
+    ...
+</repositories>
+
+<dependencies>
+    ...
+    <dependency>
+        <groupId>fr.ekalia.injector</groupId>
+        <artifactId>ekalia-injector</artifactId>
+        <version>latest</version>
+        <scope>provided</scope>
+    </dependency>
+    ...
+</dependencies>
+```
+
+### Gradle
+
+If you use Gradle you should use the following code :
+
+```groovy
+repositories {
+    maven {
+        url = uri("https://nexus.ekalia.fr/repository/maven-public/")
+    }
+}
+
+dependencies {
+    compileOnly("fr.ekalia.injector:ekalia-injector:latest")
+}
+```
 
 ## Use injector
 
