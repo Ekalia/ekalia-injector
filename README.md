@@ -2,9 +2,7 @@
 
 [![Release version](https://img.shields.io/nexus/maven-releases/fr.ekalia.injector/ekalia-injector?server=https%3A%2F%2Fnexus.ekalia.fr&label=Release&color=green&link=https%3A%2F%2Fnexus.ekalia.fr%2F%23browse%2Fbrowse%3Amaven-release%3Afr%252Fekalia%252Finjector%252Fekalia-injector)](https://nexus.ekalia.fr/#browse/browse:maven-releases:fr%2Fekalia%2Finjector%2Fekalia-injector) [![Snapshot Version](https://img.shields.io/nexus/maven-snapshots/fr.ekalia.injector/ekalia-injector?server=https%3A%2F%2Fnexus.ekalia.fr&label=Snapshot&color=blue&link=https%3A%2F%2Fnexus.ekalia.fr%2F%23browse%2Fbrowse%3Amaven-public%3Afr%252Fekalia%252Finjector%252Fekalia-injector)](https://nexus.ekalia.fr/#browse/browse:maven-snapshots:fr%2Fekalia%2Finjector%2Fekalia-injector)
 
-This is an object injector for Java programs that is used to inject objects into static fields of classes, instead of
-passing them as arguments to constructors. This is useful when you have a lot of classes that need to access the same
-object, but you don't want to pass it as an argument to every constructor.
+This is an object injector for Java programs that is used to inject objects into static fields of classes, instead of passing them as arguments to constructors. This is useful when you have a lot of classes that need to access the same object, but you don't want to pass it as an argument to every constructor.
 
 ## Installation
 
@@ -38,11 +36,23 @@ If you use Maven you should use the following code :
 
 If you use Gradle you should use the following code :
 
+Groovy:
 ```groovy
 repositories {
     maven {
         url = uri("https://nexus.ekalia.fr/repository/maven-public/")
     }
+}
+
+dependencies {
+    compileOnly("fr.ekalia.injector:ekalia-injector:latest")
+}
+```
+
+Kts:
+```groovy
+repositories {
+    maven("https://nexus.ekalia.fr/repository/maven-public/")
 }
 
 dependencies {
@@ -67,14 +77,11 @@ injector.addClassLoader(myClassLoader);
 Then you can start the injector:
 
 ```java
-injector.startInjection(currentClassLoader, "my.really.cool.package");
-injector.
-
-startInjection(myClassLoader, "my.really.cool.package","my.other.cool.package");
+ClassLoader currentClassLoader = this.getClass().getClassLoader();
+injector.startInjection(currentClassLoader, "my.really.cool.package", "my.other.cool.package");
 ```
 
-When you start the injector, it will scan all the classes in the class loaders and inject the provided classes into the
-fields of the classes that have the `@Inject` annotation.
+When you start the injector, it will scan all the classes in the class loaders and inject the provided classes into the fields of the classes that have the `@Inject` annotation.
 
 ### Provide a class
 
@@ -101,8 +108,7 @@ If you want to provide the class manually, you can use the `registerInjection` m
 injector.registerInjection(myProvidedClassInstance);
 ```
 
-If you want to set a priority (see below for explanations about priority) for the provided class, you can use the
-`registerInjection` method like this:
+If you want to set a priority (see below for explanations about priority) for the provided class, you can use the `registerInjection` method like this:
 
 ```java
 injector.registerInjection(myProvidedClassInstance, InjectPriority.HIGH);
@@ -116,7 +122,7 @@ To mark a field for injection, you need to use the `@Inject` annotation like thi
 public class MyClass {
 
     @Inject
-    private MyProvidedClass myProvidedClass;
+    private static MyProvidedClass myProvidedClass;
 
     // ...
 }
@@ -126,8 +132,7 @@ When you start the injector, it will automatically inject the provided class int
 
 ### Priority
 
-The injector uses priorities to determine which provided class to inject into a field. The default priority is
-`InjectPriority.NORMAL`.
+The injector uses priorities to determine which provided class to inject into a field. The default priority is `InjectPriority.NORMAL`.
 
 The priorities are:
 
@@ -137,8 +142,7 @@ The priorities are:
 - `InjectPriority.HIGH`
 - `InjectPriority.HIGHEST`
 
-The order of priorities is from **lowest** to **highest**: if a field has multiple provided classes with different
-priorities, the one with the lowest priority will be injected.
+The order of priorities is from **lowest** to **highest**: if a field has multiple provided classes with different priorities, the one with the highest priority will be injected.
 
 You can set the priority of a provided class when you register it with the injector or in the `@Provides` annotation:
 
@@ -151,8 +155,7 @@ public class MyProvidedClass {
 
 ## Contributing
 
-Issues and pull requests are welcome. For major changes, please open an issue first to discuss what you would like to
-change.
+Issues and pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
 
