@@ -1,12 +1,12 @@
 /*
  * Copyright 2024 Ekalia <contact@ekalia.fr>
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * https://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -34,6 +34,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -65,7 +66,7 @@ public class Injector {
      * @param instance The instance to register.
      */
     public void registerInjection(@NotNull Object instance) {
-        this.registerInjection(injection, InjectPriority.NORMAL);
+        this.registerInjection(instance, InjectPriority.NORMAL);
     }
 
     /**
@@ -196,7 +197,8 @@ public class Injector {
             }
         } catch (NoClassDefFoundError e) {
             Injector.LOGGER.error(Injector.CANNOT_LOAD_PROVIDED_CLASS, aClass.getName(), e.getMessage());
-        } catch (Throwable t) { //NOSONAR We want to catch all exceptions and throwables as ClassGraph throws Throwables and not Exceptions
+        } catch (
+                Throwable t) { //NOSONAR We want to catch all exceptions and throwables as ClassGraph throws Throwables and not Exceptions
             Injector.LOGGER.error(Injector.CANNOT_LOAD_PROVIDED_CLASS, t, aClass.getName(), t.getMessage());
         }
     }
@@ -243,12 +245,12 @@ public class Injector {
     @SuppressWarnings("java:S3011") // "Make sure that this accessibility update is safe here."
     private void injectIntoField(Field field) throws IllegalAccessException {
         if (!field.isAnnotationPresent(Inject.class)) {
-            continue;
+            return;
         }
 
         // Try to access field via reflection
         if (!field.trySetAccessible()) {
-            continue;
+            return;
         }
 
         Object optimalValue = null;
@@ -303,8 +305,8 @@ public class Injector {
      * Get the injected object for the given class
      *
      * @param clazz The class type
+     * @param <T>   The object type
      * @return An {@link Optional} that contains the injected object for the given class, if present
-     * @param <T> The object type
      */
     public <T> Optional<T> get(Class<T> clazz) {
         return Optional.ofNullable(this.classes.get(clazz)).map(Tuple2::getT2).map(clazz::cast);
