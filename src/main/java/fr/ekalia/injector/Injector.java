@@ -1,3 +1,18 @@
+/*
+ * Copyright 2024 Ekalia <contact@ekalia.fr>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package fr.ekalia.injector;
 
 import fr.ekalia.injector.annotation.Inject;
@@ -19,6 +34,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -30,22 +46,14 @@ public class Injector {
 
     private static final Logger LOGGER = LogManager.getLogger(Injector.class);
     private static final String CANNOT_LOAD_PROVIDED_CLASS = "Cannot load provided class {}: {}";
-    private static boolean initialized = false;
     private final Multimap2<Class<?>, InjectPriority, Object> classes = new Multimap2<>();
     private final Set<ClassLoader> classLoaderSet = new HashSet<>();
-    private ClassGraph classGraph;
+    private final ClassGraph classGraph;
 
     /**
      * Creates a new injector.
      */
-    @SuppressWarnings("java:S3010") // "Static fields should not be updated in constructors"
     public Injector() {
-        if (Injector.initialized) {
-            throw new IllegalStateException("Injector already initialized");
-        }
-
-        Injector.initialized = true;
-
         this.classGraph = new ClassGraph().enableAllInfo();
 
         this.classes.put(Injector.class, InjectPriority.HIGHEST, this);
@@ -58,8 +66,7 @@ public class Injector {
      * @param instance The instance to register.
      */
     public void registerInjection(@NotNull Object instance) {
-        Injector.LOGGER.info("Registering injection for {}", instance.getClass().getName());
-        this.classes.put(instance.getClass(), InjectPriority.NORMAL, instance);
+        this.registerInjection(instance, InjectPriority.NORMAL);
     }
 
     /**
@@ -69,14 +76,14 @@ public class Injector {
      * @param priority The priority of the instance.
      */
     public void registerInjection(@NotNull Object instance, @NotNull InjectPriority priority) {
-        if (Injector.LOGGER.isInfoEnabled()) {
-            Injector.LOGGER.info("Registering injection for {} with priority {}", instance.getClass().getName(), priority.name());
+        if (Injector.LOGGER.isDebugEnabled()) {
+            Injector.LOGGER.debug("Registering injection for {} with priority {}", instance.getClass().getName(), priority.name());
         }
         this.classes.put(instance.getClass(), priority, instance);
     }
 
     /**
-     * Injects all the fields annotated with {@link Inject} with the classes annotated with {@link Provides}.
+     * Add another {@link ClassLoader} to the set of class loaders used for injection.
      *
      * @param classLoader The class loader to use.
      */
@@ -96,18 +103,25 @@ public class Injector {
             "java:S3776" // "Cognitive Complexity of methods should not be too high"
     })
     public void startInjection(ClassLoader currentClassLoader, String... packageName) {
-        Injector.LOGGER.info("Starting injection for {}", () -> String.join(", ", packageName));
+        if (Injector.LOGGER.isInfoEnabled()) {
+            Injector.LOGGER.info("Starting injection for {}", () -> String.join(", ", packageName));
+        }
 
+        // Load @Provides classes
         this.loadProvides(currentClassLoader, packageName);
 
+        // Add current class loader if not already present
         this.classLoaderSet.add(currentClassLoader);
 
         // Prevent multiple registrations of the same classloader
         this.classGraph.overrideClassLoaders(this.classLoaderSet.toArray(new ClassLoader[0]));
 
+        // Scan all classes
         try (ScanResult scanResult = this.classGraph.scan()) {
+            // Get all classes containing fields annotated with @Inject
             for (ClassInfo classInfo : scanResult.getClassesWithFieldAnnotation(Inject.class.getName())) {
                 try {
+                    // Try to load the found class
                     Class<?> clazz = classInfo.loadClass(true);
 
                     if (clazz == null) {
@@ -115,19 +129,9 @@ public class Injector {
                         continue;
                     }
 
+                    // Iterate over all fields
                     for (Field field : clazz.getDeclaredFields()) {
-                        if (field.isAnnotationPresent(Inject.class)) {
-                            if (!field.trySetAccessible()) {
-                                continue;
-                            }
-
-                            if (this.classes.containsKey(field.getType())) {
-                                field.set(null, field.getType().cast(this.classes.get(field.getType()).getT2()));
-                                continue;
-                            }
-
-                            this.injectIntoField(field);
-                        }
+                        this.injectIntoField(field);
                     }
                 } catch (NoClassDefFoundError e) {
                     Injector.LOGGER.debug("Cannot load class {}", classInfo.getName());
@@ -135,12 +139,6 @@ public class Injector {
                     Injector.LOGGER.error("Cannot inject into {} : {}", classInfo.getName(), e.getMessage());
                 }
             }
-        }
-
-        this.classGraph = new ClassGraph().enableAllInfo();
-
-        for (ClassLoader classLoader : this.classLoaderSet) {
-            this.classGraph.addClassLoader(classLoader);
         }
     }
 
@@ -150,7 +148,9 @@ public class Injector {
         this.classGraph.overrideClassLoaders(currentClassLoader);
         this.classGraph.acceptPackages(packageName);
 
+        // Load all classes
         try (ScanResult scanResult = this.classGraph.scan()) {
+            // Scan only classes annotated with @Provides
             for (Class<?> aClass : scanResult.getClassesWithAnnotation(Provides.class.getName()).loadClasses(true)) {
                 this.loadProvidesClass(aClass, priorityMap);
             }
@@ -158,22 +158,30 @@ public class Injector {
     }
 
     private void loadProvidesClass(Class<?> aClass, Map<Class<?>, InjectPriority> priorityMap) {
+        if (aClass == null) {
+            return;
+        }
+
         try {
+            // Get the @Provides annotation
             Provides provides = aClass.getAnnotation(Provides.class);
 
             InjectPriority priority = provides.priority();
 
+            // If there is already another class registered with a higher priority, skip this class
             if (priorityMap.containsKey(aClass) && priorityMap.get(aClass).ordinal() > priority.ordinal()) {
                 return;
             }
 
+            // Save the loaded class
             priorityMap.put(aClass, priority);
 
+            // Try to instantiate the class
             Object instance = aClass.getDeclaredConstructor().newInstance();
             this.classes.put(aClass, priority, instance);
 
-            if (Injector.LOGGER.isInfoEnabled()) {
-                Injector.LOGGER.info("Added provider for {} with priority {}", aClass.getName(), priority.name());
+            if (Injector.LOGGER.isDebugEnabled()) {
+                Injector.LOGGER.debug("Added provider for {} with priority {}", aClass.getName(), priority.name());
             }
         } catch (UnprovidableClassException uce) {
             if (uce.isShouldLog()) {
@@ -185,15 +193,13 @@ public class Injector {
                     Injector.LOGGER.error(Injector.CANNOT_LOAD_PROVIDED_CLASS, aClass.getName(), uce.getReason());
                 }
             } else {
-                Injector.LOGGER.error(Injector.CANNOT_LOAD_PROVIDED_CLASS, aClass.getName(), ite.getMessage());
-                Injector.LOGGER.throwing(ite);
+                Injector.LOGGER.error(Injector.CANNOT_LOAD_PROVIDED_CLASS, ite, aClass.getName(), ite.getMessage());
             }
         } catch (NoClassDefFoundError e) {
             Injector.LOGGER.error(Injector.CANNOT_LOAD_PROVIDED_CLASS, aClass.getName(), e.getMessage());
         } catch (
                 Throwable t) { //NOSONAR We want to catch all exceptions and throwables as ClassGraph throws Throwables and not Exceptions
-            Injector.LOGGER.error(Injector.CANNOT_LOAD_PROVIDED_CLASS, aClass.getName(), t.getMessage());
-            Injector.LOGGER.throwing(t);
+            Injector.LOGGER.error(Injector.CANNOT_LOAD_PROVIDED_CLASS, t, aClass.getName(), t.getMessage());
         }
     }
 
@@ -210,18 +216,26 @@ public class Injector {
             "java:S1133" // "Remove the declaration of thrown exception"
     })
     public void injectAtRuntime(Object instance, String packageName, ClassLoader classLoader) throws IllegalAccessException {
+        // Scan all classes
         try (ScanResult scanResult = this.classGraph.scan()) {
+            // Get only classes containing fields annotated with @Inject
             for (ClassInfo classInfo : scanResult.getClassesWithFieldAnnotation(Inject.class.getName())) {
+                // Iterate over all fields
                 for (FieldInfo fieldInfo : classInfo.getDeclaredFieldInfo()) {
-                    if (fieldInfo.hasAnnotation(Inject.class.getName()) && fieldInfo.isPublic()) {
-                        Field field = fieldInfo.loadClassAndGetField();
+                    if (!fieldInfo.hasAnnotation(Inject.class.getName())) {
+                        continue;
+                    }
 
-                        if (field.getType().isAssignableFrom(instance.getClass())) {
-                            field.set(null, field.getType().cast(instance));
-                            continue;
-                        }
+                    Field field = fieldInfo.loadClassAndGetField();
 
-                        this.injectIntoField(field);
+                    // Try to access field via reflection
+                    if (!field.trySetAccessible()) {
+                        continue;
+                    }
+
+                    if (field.getType().isAssignableFrom(instance.getClass())) {
+                        field.set(null, field.getType().cast(instance));
+                        continue;
                     }
                 }
             }
@@ -230,12 +244,23 @@ public class Injector {
 
     @SuppressWarnings("java:S3011") // "Make sure that this accessibility update is safe here."
     private void injectIntoField(Field field) throws IllegalAccessException {
+        if (!field.isAnnotationPresent(Inject.class)) {
+            return;
+        }
+
+        // Try to access field via reflection
+        if (!field.trySetAccessible()) {
+            return;
+        }
+
         Object optimalValue = null;
         InjectPriority optimalPriority = null;
 
+        // Iterate over all possible entries
         for (Map.Entry<Class<?>, Tuple2<InjectPriority, Object>> entry : this.classes.entrySet()) {
             Class<?> aClass = entry.getKey();
 
+            // Wrong type
             if (!field.getType().isAssignableFrom(aClass)) {
                 continue;
             }
@@ -244,6 +269,7 @@ public class Injector {
             InjectPriority priority = tuple2.getT1();
             Object value = tuple2.getT2();
 
+            // Find the optimal value to inject
             if (optimalValue == null || priority.ordinal() > optimalPriority.ordinal()) {
                 optimalValue = value;
                 optimalPriority = priority;
@@ -273,5 +299,16 @@ public class Injector {
      */
     public ClassGraph getClassGraph() {
         return this.classGraph;
+    }
+
+    /**
+     * Get the injected object for the given class
+     *
+     * @param clazz The class type
+     * @param <T>   The object type
+     * @return An {@link Optional} that contains the injected object for the given class, if present
+     */
+    public <T> Optional<T> get(Class<T> clazz) {
+        return Optional.ofNullable(this.classes.get(clazz)).map(Tuple2::getT2).map(clazz::cast);
     }
 }
