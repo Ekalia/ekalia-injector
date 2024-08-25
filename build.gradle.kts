@@ -13,6 +13,8 @@ val isInCi = nexusUser != null && nexusPass != null
 group = "fr.ekalia.injector"
 version = "1.0.7" + if (isRelease) "" else "-SNAPSHOT"
 
+System.out.println("Version: " + version + ", nexusUser null? " + (nexusUser == null) + ", nexusPass null? " + (nexusPass == null));
+
 repositories {
     mavenCentral()
 
