@@ -140,6 +140,8 @@ jobs:
         run: chmod +x ./gradlew
       - name: Publish changes
         run: |
+          git pull
+          
           rm ~/.m2/settings.xml
           
           ./gradlew publish
