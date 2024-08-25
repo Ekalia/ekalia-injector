@@ -123,6 +123,9 @@ jobs:
           git push origin ${{ github.ref }}
   publish:
     runs-on: ubuntu-latest
+    env:
+      NEXUS_USER: ${{ secrets.NEXUS_USER }}
+      NEXUS_PASS: ${{ secrets.NEXUS_PASS }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
